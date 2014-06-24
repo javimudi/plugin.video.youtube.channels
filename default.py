@@ -315,7 +315,7 @@ def playPlaylist(params):
                 playlist.add(url,listitem)
                 firstVideo = False
 
-              playlist.add(url, listItem)
+              playlist.add(url, listitem)
           except:
             pass
         xbmc.Player().play(playlist)  
