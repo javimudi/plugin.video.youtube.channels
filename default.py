@@ -201,7 +201,7 @@ def listVideos(params,type=TYPE_CHANNEL):
           index = spl[1]
           content = getUrl("http://gdata.youtube.com/feeds/api/playlists/"+playlist+"?max-results=50&start-index="+index+"&v=2")
           # Play all
-          addLink(translation(32001), params, "playPlaylist","")
+          # addLink(translation(32001), params, "playPlaylist","")
 
         match=re.compile("<openSearch:totalResults>(.+?)</openSearch:totalResults><openSearch:startIndex>(.+?)</openSearch:startIndex>", re.DOTALL).findall(content)
         maxIndex=int(match[0][0])
@@ -234,8 +234,10 @@ def listVideos(params,type=TYPE_CHANNEL):
             match=re.compile("<published>(.+?)T", re.DOTALL).findall(entry)
             date=match[0]
             thumb="http://img.youtube.com/vi/"+id+"/0.jpg"
-            addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
-          
+            if type == TYPE_CHANNEL:
+              addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
+            elif type == TYPE_PLAYLIST:
+              addLink(title, playlist+"#"+str(int(index)+50)+"#"+id, "playPlaylist",thumb,"",duration,"")
           except IndexError:
             pass
 
@@ -283,10 +285,13 @@ def playChannel(user):
             pass
         xbmc.Player().play(playlist)
 
-def playPlaylist(playlist):
-        spl = playlist.split('#')
+def playPlaylist(params):
+        spl = params.split('#')
         playlist = spl[0]
         index = spl[1]
+        fromid = spl[2]
+
+        toAdd = False
         content = getUrl("http://gdata.youtube.com/feeds/api/playlists/"+playlist+"?max-results=50&index="+index+"&v=2")
         spl=content.split('<entry')
         playlist = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
@@ -296,12 +301,14 @@ def playPlaylist(playlist):
             entry=spl[i]
             match=re.compile('<yt:videoid>(.+?)</yt:videoid>', re.DOTALL).findall(entry)
             id=match[0]
-            url = getYoutubeUrl(id)
-            match=re.compile("<media:title type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
-            title=match[0]
-            title=cleanTitle(title)
-            listitem = xbmcgui.ListItem(title)
-            playlist.add(url,listitem)
+            if id == fromid or toAdd is True:
+              toAdd = True
+              url = getYoutubeUrl(id)
+              match=re.compile("<media:title type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
+              title=match[0]
+              title=cleanTitle(title)
+              listitem = xbmcgui.ListItem(title)
+              playlist.add(url,listitem)
           except:
             pass
         xbmc.Player().play(playlist)  
