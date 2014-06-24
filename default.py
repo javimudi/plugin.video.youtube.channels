@@ -9,10 +9,15 @@ xbox = xbmc.getCondVisibility("System.Platform.xbox")
 addon = xbmcaddon.Addon(addonID)
 addon_work_folder=xbmc.translatePath("special://profile/addon_data/"+addonID)
 channelFile=xbmc.translatePath("special://profile/addon_data/"+addonID+"/youtube.channels")
+playlistsFile=xbmc.translatePath("special://profile/addon_data/"+addonID+"/youtube.playlists")
 iconVSX=xbmc.translatePath('special://home/addons/'+addonID+'/iconVSX.png')
 forceViewMode=addon.getSetting("forceView")
 viewMode=str(addon.getSetting("viewMode"))
 showMessages=str(addon.getSetting("showMessages"))
+
+
+TYPE_CHANNEL = 0
+TYPE_PLAYLIST = 1
 
 if not os.path.isdir(addon_work_folder):
   os.mkdir(addon_work_folder)
@@ -21,6 +26,7 @@ def translation(id): return addon.getLocalizedString(id).encode('utf-8')
 
 def index():
         addDir(translation(30001),"","myChannels","")
+        addDir(translation(32000),"","myPlaylists","")
         addDir(translation(30016),"","listPopular","")
         addDir(translation(30006),"","search","")
         addVSXDir("VidStatsX.com","","",iconVSX)
@@ -30,37 +36,63 @@ def myChannels():
         xbmcplugin.addSortMethod(pluginhandle, xbmcplugin.SORT_METHOD_LABEL)
         if os.path.exists(channelFile):
           cats = []
-          fh = open(channelFile, 'r')
-          for line in fh:
-            match=re.compile('(.+?)#(.+?)#(.+?)#(.+?)#', re.DOTALL).findall(line)
-            name=match[0][0]
-            user=match[0][1]
-            thumb=match[0][2]
-            cat=match[0][3]
-            if cat=="NoCat":
-              addChannelFavDir(name,user+"#1",'showSortSelection',thumb,user)
-            elif cat not in cats:
-              cats.append(cat)
-              addCatMainDir("- "+cat, cat, "listCat", "")
-          fh.close()
+          with open(channelFile, 'r') as fh:
+            for line in fh:
+              match=re.compile('(.+?)#(.+?)#(.+?)#(.+?)#', re.DOTALL).findall(line)
+              if match:
+                name=match[0][0]
+                user=match[0][1]
+                thumb=match[0][2]
+                cat=match[0][3]
+                if cat=="NoCat":
+                  addChannelFavDir(name,user+"#1",'showSortSelection',thumb,user)
+                elif cat not in cats:
+                  cats.append(cat)
+                  addCatMainDir(cat, cat, "listCat", "")
         xbmcplugin.endOfDirectory(pluginhandle)
         if forceViewMode=="true":
           xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
 
-def listCat(cat):
+def myPlaylists():
         xbmcplugin.addSortMethod(pluginhandle, xbmcplugin.SORT_METHOD_LABEL)
-        if os.path.exists(channelFile):
-          fh = open(channelFile, 'r')
-          all_lines = fh.readlines()
-          for line in all_lines:
-            if cat+"#" in line:
+        if os.path.exists(playlistsFile):
+          cats = []
+          with open(playlistsFile, 'r') as fh:
+            for line in fh:
               match=re.compile('(.+?)#(.+?)#(.+?)#(.+?)#', re.DOTALL).findall(line)
-              name=match[0][0]
-              id=match[0][1]
-              thumb=match[0][2]
-              cat=match[0][3]
-              addCatDir(name,id+"#1",'showSortSelection',thumb,id,cat)
-          fh.close()
+              if match:
+                name=match[0][0]
+                user=match[0][1]
+                thumb=match[0][2]
+                cat=match[0][3]
+                if cat=="NoCat":
+                  addChannelFavDir(name,user+"#1",'showSortSelection',thumb,user)
+                elif cat not in cats:
+                  cats.append(cat)
+                  addCatMainDir(cat, cat, "listPlaylistCat", "")
+        xbmcplugin.endOfDirectory(pluginhandle)
+        if forceViewMode=="true":
+          xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
+
+def listCat(cat, type=TYPE_CHANNEL):
+        xbmcplugin.addSortMethod(pluginhandle, xbmcplugin.SORT_METHOD_LABEL)
+        targetFile = channelFile if type==TYPE_CHANNEL else playlistsFile
+        print targetFile
+        if os.path.exists(targetFile):
+          with open(targetFile, 'r') as fh:
+            for line in fh:
+              if cat+"#" in line:
+                match=re.compile('(.+?)#(.+?)#(.+?)#(.+?)#', re.DOTALL).findall(line)
+                if match:
+                  name=match[0][0]
+                  id=match[0][1]
+                  thumb=match[0][2]
+                  cat=match[0][3]
+                  if type==TYPE_CHANNEL:
+                    addCatDir(name,id+"#1",'showSortSelection',thumb,id,cat)
+                  elif type==TYPE_PLAYLIST:
+                    addCatDir(name,id+'#1','listPlaylistVideos',thumb,id,cat)
+
         xbmcplugin.endOfDirectory(pluginhandle)
         if forceViewMode=="true":
           xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
@@ -70,6 +102,12 @@ def showSortSelection(url):
         addDir(translation(30022),url+"#viewCount","listVideos","")
         addDir(translation(30023),url+"#rating","listVideos","")
         xbmcplugin.endOfDirectory(pluginhandle)
+
+def showPlaylistVideos(url):
+        addLink(translation(32001), url, "playPlaylist","")
+
+        xbmcplugin.endOfDirectory(pluginhandle)
+
 
 def search():
         keyboard = xbmc.Keyboard('', translation(30006))
@@ -81,22 +119,25 @@ def search():
 def listPopular():
         content = getUrl("https://gdata.youtube.com/feeds/api/channelstandardfeeds/most_subscribed?max-results=50&v=2")
         spl=content.split('<entry')
-        for i in range(1,len(spl),1):
+        for i in xrange(1,len(spl),1):
             entry=spl[i]
-            match=re.compile('<uri>https://gdata.youtube.com/feeds/api/users/(.+?)</uri>', re.DOTALL).findall(entry)
-            user=match[0]
-            match=re.compile("viewCount='(.+?)'", re.DOTALL).findall(entry)
-            viewCount=match[0]
-            match=re.compile("subscriberCount='(.+?)'", re.DOTALL).findall(entry)
-            subscribers=match[0]
-            match=re.compile("<summary>(.+?)</summary>", re.DOTALL).findall(entry)
-            desc=""
-            if len(match)>0:
-              desc=match[0]
-              desc=cleanTitle(desc)
-            match=re.compile("<yt:userId>(.+?)</yt:userId>", re.DOTALL).findall(entry)
-            thumb="http://img.youtube.com/i/"+match[0]+"/mq1.jpg"
-            addChannelDir("[B]"+user+"[/B]  -  "+subscribers+" Subscribers",user+"#1",'showSortSelection',thumb,user,"Views: "+viewCount+"\nSubscribers: "+subscribers+"\n"+desc)
+            try:
+              match=re.compile('<uri>https://gdata.youtube.com/feeds/api/users/(.+?)</uri>', re.DOTALL).findall(entry)
+              user=match[0]
+              match=re.compile("viewCount='(.+?)'", re.DOTALL).findall(entry)
+              viewCount=match[0]
+              match=re.compile("subscriberCount='(.+?)'", re.DOTALL).findall(entry)
+              subscribers=match[0]
+              match=re.compile("<summary>(.+?)</summary>", re.DOTALL).findall(entry)
+              desc=""
+              if len(match)>0:
+                desc=match[0]
+                desc=cleanTitle(desc)
+              match=re.compile("<yt:userId>(.+?)</yt:userId>", re.DOTALL).findall(entry)
+              thumb="http://img.youtube.com/i/"+match[0]+"/mq1.jpg"
+              addChannelDir("[B]"+user+"[/B]  -  "+subscribers+" Subscribers",user+"#1",'showSortSelection',thumb,user,"Views: "+viewCount+"\nSubscribers: "+subscribers+"\n"+desc)
+            except IndexError:
+              pass
         xbmcplugin.endOfDirectory(pluginhandle)
 
 def listSearchChannels(params):
@@ -108,7 +149,7 @@ def listSearchChannels(params):
         maxIndex=int(match[0][0])
         startIndex=int(match[0][1])
         spl=content.split('<entry')
-        for i in range(1,len(spl),1):
+        for i in xrange(1,len(spl),1):
             entry=spl[i]
             match=re.compile('<uri>https://gdata.youtube.com/feeds/api/users/(.+?)</uri>', re.DOTALL).findall(entry)
             user=match[0]
@@ -139,53 +180,72 @@ def updateThumb(user):
           if "#"+user+"#DefaultFolder.png" in contentCats:
             content = getUrl("http://www.youtube.com/user/"+user)
             match=re.compile('\'CHANNEL_ID\', "UC(.+?)"', re.DOTALL).findall(content)
-            thumb="http://img.youtube.com/i/"+match[0]+"/mq1.jpg"
-            if user+"#"+thumb not in content:
-              newContent=contentCats.replace(user+"#DefaultFolder.png",user+"#"+thumb)
-              fh = open(channelFile, 'w')
-              fh.write(newContent)
-              fh.close()
+            if match:
+              thumb="http://img.youtube.com/i/"+match[0]+"/mq1.jpg"
+              if user+"#"+thumb not in content:
+                newContent=contentCats.replace(user+"#DefaultFolder.png",user+"#"+thumb)
+                fh = open(channelFile, 'w')
+                fh.write(newContent)
+                fh.close()
 
-def listVideos(params):
+def listVideos(params,type=TYPE_CHANNEL):
         spl=params.split("#")
-        user=spl[0]
-        index=spl[1]
-        orderby=spl[2]
-        updateThumb(user)
-        content = getUrl("http://gdata.youtube.com/feeds/api/videos?author="+user+"&racy=include&max-results=50&start-index="+index+"&orderby="+orderby+"&v=2")
+        if type == TYPE_CHANNEL:
+          user=spl[0]
+          index=spl[1]
+          orderby=spl[2]
+          updateThumb(user)
+          content = getUrl("http://gdata.youtube.com/feeds/api/videos?author="+user+"&racy=include&max-results=50&start-index="+index+"&orderby="+orderby+"&v=2")
+        elif type == TYPE_PLAYLIST:
+          playlist = spl[0]
+          index = spl[1]
+          content = getUrl("http://gdata.youtube.com/feeds/api/playlists/"+playlist+"?max-results=50&start-index="+index+"&v=2")
+          # Play all
+          addLink(translation(32001), params, "playPlaylist","")
+
         match=re.compile("<openSearch:totalResults>(.+?)</openSearch:totalResults><openSearch:startIndex>(.+?)</openSearch:startIndex>", re.DOTALL).findall(content)
         maxIndex=int(match[0][0])
-        startIndex=int(match[0][1])
+        startIndex=int(match[0][1])  
         spl=content.split('<entry')
-        for i in range(1,len(spl),1):
-          entry=spl[i]
-          match=re.compile('<yt:videoid>(.+?)</yt:videoid>', re.DOTALL).findall(entry)
-          id=match[0]
-          match=re.compile("viewCount='(.+?)'", re.DOTALL).findall(entry)
-          viewCount="0"
-          if len(match)>0:
-            viewCount=match[0]
-          match=re.compile("duration='(.+?)'", re.DOTALL).findall(entry)
-          durationTemp=int(match[0])
-          min=(durationTemp/60)+1
-          sec=durationTemp%60
-          duration=str(min)+":"+str(sec)
-          match=re.compile("<author><name>(.+?)</name>", re.DOTALL).findall(entry)
-          author=match[0]
-          match=re.compile("<media:title type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
-          title=match[0]
-          title=cleanTitle(title)
-          match=re.compile("<media:description type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
-          desc=""
-          if len(match)>0:
-            desc=match[0]
-            desc=cleanTitle(desc)
-          match=re.compile("<published>(.+?)T", re.DOTALL).findall(entry)
-          date=match[0]
-          thumb="http://img.youtube.com/vi/"+id+"/0.jpg"
-          addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
+        for i in xrange(1,len(spl),1):
+          try:
+            entry=spl[i]
+            match=re.compile('<yt:videoid>(.+?)</yt:videoid>', re.DOTALL).findall(entry)
+            id=match[0]
+            match=re.compile("viewCount='(.+?)'", re.DOTALL).findall(entry)
+            viewCount="0"
+            if len(match)>0:
+              viewCount=match[0]
+            match=re.compile("duration='(.+?)'", re.DOTALL).findall(entry)
+            durationTemp=int(match[0])
+            min=(durationTemp/60)+1
+            sec=durationTemp%60
+            duration=str(min)+":"+str(sec)
+            match=re.compile("<author><name>(.+?)</name>", re.DOTALL).findall(entry)
+            author=match[0]
+            match=re.compile("<media:title type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
+            title=match[0]
+            title=cleanTitle(title)
+            match=re.compile("<media:description type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
+            desc=""
+            if len(match)>0:
+              desc=match[0]
+              desc=cleanTitle(desc)
+            match=re.compile("<published>(.+?)T", re.DOTALL).findall(entry)
+            date=match[0]
+            thumb="http://img.youtube.com/vi/"+id+"/0.jpg"
+            addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
+          
+          except IndexError:
+            pass
+
+        
         if startIndex+50<=maxIndex:
-          addDir(translation(30007),user+"#"+str(int(index)+50)+"#"+orderby,'listVideos',"")
+          if type == TYPE_CHANNEL:
+            addDir(translation(30007),user+"#"+str(int(index)+50)+"#"+orderby,'listVideos',"")
+          if type == TYPE_PLAYLIST:
+            addDir(translation(30007),playlist+"#"+str(int(index)+50),'listPlaylistVideos',"")
+
         xbmcplugin.endOfDirectory(pluginhandle)
         if forceViewMode=="true":
           xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
@@ -208,7 +268,7 @@ def playChannel(user):
         spl=content.split('<entry')
         playlist = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
         playlist.clear()
-        for i in range(1,len(spl),1):
+        for i in xrange(1,len(spl),1):
           try:
             entry=spl[i]
             match=re.compile('<yt:videoid>(.+?)</yt:videoid>', re.DOTALL).findall(entry)
@@ -223,6 +283,29 @@ def playChannel(user):
             pass
         xbmc.Player().play(playlist)
 
+def playPlaylist(playlist):
+        spl = playlist.split('#')
+        playlist = spl[0]
+        index = spl[1]
+        content = getUrl("http://gdata.youtube.com/feeds/api/playlists/"+playlist+"?max-results=50&index="+index+"&v=2")
+        spl=content.split('<entry')
+        playlist = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
+        playlist.clear()
+        for i in xrange(1,len(spl),1):
+          try:
+            entry=spl[i]
+            match=re.compile('<yt:videoid>(.+?)</yt:videoid>', re.DOTALL).findall(entry)
+            id=match[0]
+            url = getYoutubeUrl(id)
+            match=re.compile("<media:title type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
+            title=match[0]
+            title=cleanTitle(title)
+            listitem = xbmcgui.ListItem(title)
+            playlist.add(url,listitem)
+          except:
+            pass
+        xbmc.Player().play(playlist)  
+
 def addChannel(args):
         args=args.replace("[B]","").replace("[/B]","")
         match=re.compile('(.+?)#(.+?)#(.+?)#', re.DOTALL).findall(args)
@@ -233,7 +316,7 @@ def addChannel(args):
         if "  -  " in id: id=id[:id.find("  -  ")]
         playlistsTemp=[]
         catsCount=20
-        for i in range(0,catsCount,1):
+        for i in xrange(0,catsCount,1):
           playlistsTemp.append(addon.getSetting("cat_"+str(i)))
         playlists=[]
         playlists.append(translation(30027))
@@ -244,7 +327,7 @@ def addChannel(args):
         if len(playlists)==0:
           addon.openSettings()
           playlistsTemp=[]
-          for i in range(0,catsCount,1):
+          for i in xrange(0,catsCount,1):
             playlistsTemp.append(addon.getSetting("cat_"+str(i)))
           playlists=[]
           playlists.append(translation(30027))
@@ -259,7 +342,7 @@ def addChannel(args):
           while ("- "+str(translation(30005)) in pl):
             addon.openSettings()
             playlistsTemp=[]
-            for i in range(0,catsCount,1):
+            for i in xrange(0,catsCount,1):
               playlistsTemp.append(addon.getSetting("cat_"+str(i)))
             playlists=[]
             playlists.append(translation(30027))
@@ -299,7 +382,7 @@ def addToCat(args):
         if "  -  " in id: id=id[:id.find("  -  ")]
         playlistsTemp=[]
         catsCount=20
-        for i in range(0,catsCount,1):
+        for i in xrange(0,catsCount,1):
           playlistsTemp.append(addon.getSetting("cat_"+str(i)))
         playlists=[]
         for pl in playlistsTemp:
@@ -309,7 +392,7 @@ def addToCat(args):
         if len(playlists)==0:
           addon.openSettings()
           playlistsTemp=[]
-          for i in range(0,catsCount,1):
+          for i in xrange(0,catsCount,1):
             playlistsTemp.append(addon.getSetting("cat_"+str(i)))
           playlists=[]
           for pl in playlistsTemp:
@@ -323,7 +406,7 @@ def addToCat(args):
           while ("- "+str(translation(30005)) in pl):
             addon.openSettings()
             playlistsTemp=[]
-            for i in range(0,catsCount,1):
+            for i in xrange(0,catsCount,1):
               playlistsTemp.append(addon.getSetting("cat_"+str(i)))
             playlists=[]
             for pl in playlistsTemp:
@@ -361,7 +444,7 @@ def removeChannel(args):
         fh = open(channelFile, 'r')
         content=fh.read()
         fh.close()
-        fh=open(channelFile, 'w')
+        fh = open(channelFile, 'w')
         fh.write(content.replace(args+"\n",""))
         fh.close()
         xbmc.executebuiltin("Container.Refresh")
@@ -496,20 +579,30 @@ if mode == 'search':
     search()
 elif mode == 'myChannels':
     myChannels()
+elif mode == 'myPlaylists':
+    myPlaylists()
 elif mode == 'listPopular':
     listPopular()
 elif mode == 'listSearchChannels':
     listSearchChannels(url)
 elif mode == 'showSortSelection':
     showSortSelection(url)
+elif mode == 'showPlaylistVideos':
+    showPlaylistVideos(url)
 elif mode == 'listVideos':
     listVideos(url)
+elif mode == 'listPlaylistVideos':
+    listVideos(url, type=TYPE_PLAYLIST)
 elif mode == 'listCat':
     listCat(url)
+elif mode == 'listPlaylistCat':
+    listCat(url, type=TYPE_PLAYLIST)
 elif mode == 'playVideo':
     playVideo(url)
 elif mode == 'playChannel':
     playChannel(url)
+elif mode == 'playPlaylist':
+    playPlaylist(url)
 elif mode == 'favourites':
     favourites(url)
 elif mode == 'addChannel':
