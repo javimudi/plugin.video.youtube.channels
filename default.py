@@ -292,6 +292,7 @@ def playPlaylist(params):
         fromid = spl[2]
 
         toAdd = False
+        firstVideo = True
         content = getUrl("http://gdata.youtube.com/feeds/api/playlists/"+playlist+"?max-results=50&index="+index+"&v=2")
         spl=content.split('<entry')
         playlist = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
@@ -308,7 +309,13 @@ def playPlaylist(params):
               title=match[0]
               title=cleanTitle(title)
               listitem = xbmcgui.ListItem(title)
-              playlist.add(url,listitem)
+              
+              if firstVideo:
+                # HACK: first video is skipped after a few seconds, so we add it twice
+                playlist.add(url,listitem)
+                firstVideo = False
+
+              playlist.add(url, listItem)
           except:
             pass
         xbmc.Player().play(playlist)  
