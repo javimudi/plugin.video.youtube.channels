@@ -98,9 +98,12 @@ def listCat(cat, type=TYPE_CHANNEL):
           xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
 
 def showSortSelection(url):
+        addDir(translation(32002),url+"#1","listPlaylistsForUser","")
         addDir(translation(30021),url+"#published","listVideos","")
         addDir(translation(30022),url+"#viewCount","listVideos","")
         addDir(translation(30023),url+"#rating","listVideos","")
+
+
         xbmcplugin.endOfDirectory(pluginhandle)
 
 def showPlaylistVideos(url):
@@ -188,6 +191,41 @@ def updateThumb(user):
                 fh.write(newContent)
                 fh.close()
 
+def listPlaylistsForUser(params):
+        spl = params.split("#")
+        user = spl[0]
+        index = spl[1]
+
+        content = getUrl("http://gdata.youtube.com/feeds/api/users/"+user+"/playlists?max-results=50&start-index="+index+"&v=2")
+        match=re.compile("<openSearch:totalResults>(.+?)</openSearch:totalResults><openSearch:startIndex>(.+?)</openSearch:startIndex>", re.DOTALL).findall(content)
+        maxIndex=int(match[0][0])
+        startIndex=int(match[0][1])  
+        spl=content.split('<entry')
+        for i in xrange(1,len(spl),1):
+          try:
+            entry = spl[i]
+
+            match=re.compile('<id>tag\:(.*)\:user\:(.*)\:playlist\:(.+?)</id>').findall(entry)
+            if match: id = match[0][2]
+
+
+            match=re.compile('<title>(.+?)</title>').findall(entry)
+            if match: title = match[0]
+
+            addCatDir(title,id+'#1','listPlaylistVideos',"", "", "")
+
+          except Exception, e:
+            print "Error: %s" % e
+
+          
+        if startIndex+50<=maxIndex:
+          addDir(translation(30007),user+"#"+str(int(index)+50)+"#",'listPlaylistsForUser',"")
+
+
+        xbmcplugin.endOfDirectory(pluginhandle)
+        if forceViewMode=="true":
+          xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')        
+
 def listVideos(params,type=TYPE_CHANNEL):
         spl=params.split("#")
         if type == TYPE_CHANNEL:
@@ -201,7 +239,7 @@ def listVideos(params,type=TYPE_CHANNEL):
           index = spl[1]
           content = getUrl("http://gdata.youtube.com/feeds/api/playlists/"+playlist+"?max-results=50&start-index="+index+"&v=2")
           # Play all
-          # addLink(translation(32001), params, "playPlaylist","")
+          addLink(translation(32001), params, "playPlaylist","")
 
         match=re.compile("<openSearch:totalResults>(.+?)</openSearch:totalResults><openSearch:startIndex>(.+?)</openSearch:startIndex>", re.DOTALL).findall(content)
         maxIndex=int(match[0][0])
@@ -237,7 +275,9 @@ def listVideos(params,type=TYPE_CHANNEL):
             if type == TYPE_CHANNEL:
               addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
             elif type == TYPE_PLAYLIST:
-              addLink(title, playlist+"#"+str(int(index)+50)+"#"+id, "playPlaylist",thumb,"",duration,"")
+              #addLink(title, playlist+"#"+str(int(index)+50)+"#"+id, "playPlaylist",thumb,"",duration,"")
+              addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
+
           except IndexError:
             pass
 
@@ -247,6 +287,8 @@ def listVideos(params,type=TYPE_CHANNEL):
             addDir(translation(30007),user+"#"+str(int(index)+50)+"#"+orderby,'listVideos',"")
           if type == TYPE_PLAYLIST:
             addDir(translation(30007),playlist+"#"+str(int(index)+50),'listPlaylistVideos',"")
+#            addDir(translation(30007),user+"#"+str(int(index)+50)+"#"+orderby,'listVideos',"")
+
 
         xbmcplugin.endOfDirectory(pluginhandle)
         if forceViewMode=="true":
@@ -599,6 +641,8 @@ elif mode == 'listPopular':
     listPopular()
 elif mode == 'listSearchChannels':
     listSearchChannels(url)
+elif mode == 'listPlaylistsForUser':
+    listPlaylistsForUser(url)    
 elif mode == 'showSortSelection':
     showSortSelection(url)
 elif mode == 'showPlaylistVideos':
