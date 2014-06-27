@@ -238,8 +238,7 @@ def listVideos(params,type=TYPE_CHANNEL):
           playlist = spl[0]
           index = spl[1]
           content = getUrl("http://gdata.youtube.com/feeds/api/playlists/"+playlist+"?max-results=50&start-index="+index+"&v=2")
-          # Play all
-          addLink(translation(32001), params, "playPlaylist","")
+
 
         match=re.compile("<openSearch:totalResults>(.+?)</openSearch:totalResults><openSearch:startIndex>(.+?)</openSearch:startIndex>", re.DOTALL).findall(content)
         maxIndex=int(match[0][0])
@@ -275,7 +274,10 @@ def listVideos(params,type=TYPE_CHANNEL):
             if type == TYPE_CHANNEL:
               addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
             elif type == TYPE_PLAYLIST:
-              #addLink(title, playlist+"#"+str(int(index)+50)+"#"+id, "playPlaylist",thumb,"",duration,"")
+              # Play all
+              if i == 1:
+                #addLink(title, playlist+"#"+str(int(index)+50)+"#"+id, "playPlaylist",thumb,"",duration,"")
+                addLink(translation(32001), params+"#"+id, "playPlaylist","")
               addLink(title,id,'playVideo',thumb,"Date: "+date+"; Views: "+viewCount+"\n"+desc,duration,author)
 
           except IndexError:
