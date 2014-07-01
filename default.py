@@ -263,7 +263,7 @@ def listVideos(params,type=TYPE_CHANNEL):
             match=re.compile("<media:title type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
             title=match[0]
             title=cleanTitle(title)
-            match=re.compile("<media:description type='plain'>(.+?)</media:title>", re.DOTALL).findall(entry)
+            match=re.compile("<media:description type='plain'>(.+?)</media:description>", re.DOTALL).findall(entry)
             desc=""
             if len(match)>0:
               desc=match[0]
@@ -353,11 +353,16 @@ def playPlaylist(params):
               title=match[0]
               title=cleanTitle(title)
               listitem = xbmcgui.ListItem(title)
-              
+
+              # HACK: first video is skipped after a few seconds, so we add a dummy video first              
               if firstVideo:
-                # HACK: first video is skipped after a few seconds, so we add it twice
-                playlist.add(url,listitem)
-                firstVideo = False
+                firstVideo = False                
+                id = "OCWj5xgu5Ng" # Dummy
+                title = "Placeholder Video"
+                dummy_url = getYoutubeUrl(id)
+                dummy_listitem = xbmcgui.ListItem(title)
+                playlist.add(dummy_url,dummy_listitem)
+
 
               playlist.add(url, listitem)
           except:
